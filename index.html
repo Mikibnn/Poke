@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Autobattler Tamagotchi</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="home-screen" class="screen">
+        <h1>My Monster</h1>
+        <div id="stats-display">Loading...</div>
+        <button id="train-btn">Train (+XP)</button>
+        <button id="go-shop-btn">Go to Shop</button>
+        <button id="go-prep-btn">Go to Arena</button>
+      </div>
+
+      <div id="shop-screen" class="screen" style="display: none;">
+        <h1>Shop</h1>
+        <div id="shop-stats-display">Loading...</div>
+        <div id="shop-items">
+          <button id="buy-potion-btn">Buy Health Potion (50 coins)</button>
+        </div>
+        <div id="inventory-display"></div>
+        <button id="back-home-from-shop">Back</button>
+      </div>
+
+      <div id="prep-screen" class="screen" style="display: none;">
+        <h1>Arena Prep</h1>
+        <textarea id="strategy-input" rows="4" cols="50" placeholder="Enter strategy... e.g. Keep your distance and use Fireball"></textarea><br>
+        <button id="generate-strategy-btn">Generate Strategy</button>
+        <pre id="strategy-output"></pre>
+        <button id="start-battle-btn" disabled>Start Battle</button>
+        <button id="back-home-from-prep">Back</button>
+      </div>
+
+      <div id="game-screen" class="screen" style="display: none;">
+        <div style="position: absolute; top: 10px; right: 10px; z-index: 50;">
+          <button id="change-tactics-btn">Change Tactics (Pause)</button>
+        </div>
+        <div id="game-container"></div>
+      </div>
+
+      <div id="tactics-overlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); color: white; padding: 20px; box-sizing: border-box; z-index: 100;">
+        <h2>Tactical Pause</h2>
+        <p id="tactics-context">Current State: ...</p>
+        <textarea id="tactics-input" rows="4" cols="50" placeholder="Enter new tactic..."></textarea><br>
+        <button id="apply-tactics-btn">Change Tactics</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
