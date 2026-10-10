@@ -58,5 +58,9 @@ export async function initDB() {
     // Add default skills
     await db.Skills.add({ skill_name: 'Fireball' });
     await db.Skills.add({ skill_name: 'Slash' });
+    await db.Skills.add({ skill_name: 'Heal' });
+    await db.Skills.add({ skill_name: 'Shield' });
+    await db.Skills.add({ skill_name: 'Poison' });
+    await db.Skills.add({ skill_name: 'Lightning' });
   }
 }
