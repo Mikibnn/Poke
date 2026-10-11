@@ -64,5 +64,8 @@ export async function initDB() {
     await db.Skills.add({ skill_name: 'Shield' });
     await db.Skills.add({ skill_name: 'Poison' });
     await db.Skills.add({ skill_name: 'Lightning' });
+    await db.Skills.add({ skill_name: 'Vampiric Drain' });
+    await db.Skills.add({ skill_name: 'Freeze' });
+    await db.Skills.add({ skill_name: 'Earthquake' });
   }
 }

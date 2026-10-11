@@ -8,8 +8,8 @@ export interface BattleData {
 }
 
 export class BattleScene extends Phaser.Scene {
-  player!: Phaser.GameObjects.Image & { body: Phaser.Physics.Arcade.Body };
-  enemy!: Phaser.GameObjects.Image & { body: Phaser.Physics.Arcade.Body };
+  player!: Phaser.Types.Physics.Arcade.ImageWithDynamicBody;
+  enemy!: Phaser.Types.Physics.Arcade.ImageWithDynamicBody;
   playerHealthBar!: Phaser.GameObjects.Rectangle;
   enemyHealthBar!: Phaser.GameObjects.Rectangle;
 
@@ -25,6 +25,7 @@ export class BattleScene extends Phaser.Scene {
   // Status effects
   enemyPoisonTicks = 0;
   playerShieldedTime = 0;
+  enemyFrozenTime = 0;
 
   constructor() {
     super('BattleScene');
@@ -151,6 +152,11 @@ export class BattleScene extends Phaser.Scene {
       this.playerStats.defense /= 2; // Remove shield buff
       this.player.clearTint();
     }
+    // Freeze expiration
+    if (this.enemyFrozenTime > 0 && time > this.enemyFrozenTime + 3000) {
+      this.enemyFrozenTime = 0;
+      this.enemy.clearTint();
+    }
   }
 
   checkWinCondition() {
@@ -192,8 +198,16 @@ export class BattleScene extends Phaser.Scene {
     const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.enemy.x, this.enemy.y);
     const speed = 150;
 
-    // Enemy logic: always tries to close distance (melee)
-    this.physics.moveToObject(this.enemy, this.player, speed * 0.8);
+    // Enemy logic: always tries to close distance (melee) unless frozen
+    if (this.enemyFrozenTime === 0) {
+      if (this.enemy && this.enemy.active && this.player && this.player.active) {
+        this.physics.moveToObject(this.enemy, this.player, speed * 0.8);
+      }
+    } else {
+      if (this.enemy && this.enemy.active && this.enemy.body) {
+        (this.enemy.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      }
+    }
 
     const hpPercent = (this.playerStats.hp / this.playerStats.maxHp) * 100;
     let currentPrefDist = this.strategy.preferred_distance;
@@ -209,7 +223,7 @@ export class BattleScene extends Phaser.Scene {
     else if (currentPrefDist === 'mid') targetDist = 200;
     else if (currentPrefDist === 'ranged') targetDist = 400;
 
-    if (this.player && this.player.body && this.enemy && this.enemy.body) {
+    if (this.player && this.player.active && this.player.body && this.enemy && this.enemy.active && this.enemy.body) {
       if (dist < targetDist - 20) {
         // Move away
         const angle = Phaser.Math.Angle.Between(this.enemy.x, this.enemy.y, this.player.x, this.player.y);
@@ -253,14 +267,20 @@ export class BattleScene extends Phaser.Scene {
         this.castPoison();
       } else if (primarySkill === 'Lightning') {
         this.castLightning(baseDamage * 1.5);
+      } else if (primarySkill === 'Vampiric Drain') {
+        this.castVampiricDrain(baseDamage * 1.2);
+      } else if (primarySkill === 'Freeze') {
+        this.castFreeze(time);
+      } else if (primarySkill === 'Earthquake') {
+        this.castEarthquake(baseDamage * 0.8);
       } else if (primarySkill === 'Fireball') {
         this.castFireball(baseDamage);
       } else {
         this.castSlash(baseDamage);
       }
 
-      // Random enemy attack logic
-      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, this.enemy.x, this.enemy.y) < 60) {
+      // Random enemy attack logic (only if not frozen)
+      if (this.enemyFrozenTime === 0 && Phaser.Math.Distance.Between(this.player.x, this.player.y, this.enemy.x, this.enemy.y) < 60) {
         // 10% chance for player to dodge
         if (Math.random() < 0.1) {
           this.showFloatingText(this.player.x, this.player.y - 20, "Dodge!", "#aaaaaa");
@@ -358,6 +378,72 @@ export class BattleScene extends Phaser.Scene {
     this.time.delayedCall(3000, () => { if (proj.active) proj.destroy(); });
   }
 
+  castVampiricDrain(damage: number) {
+    if (Math.random() < 0.1) {
+      this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
+    } else {
+      let actualDmg = Math.max(1, damage - this.enemyStats.defense);
+      let isCrit = false;
+      if (Math.random() < 0.15) {
+        actualDmg *= 2;
+        isCrit = true;
+      }
+      this.enemyStats.hp -= actualDmg;
+      this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ff0000");
+
+      const healAmount = Math.floor(actualDmg * 0.5);
+      this.playerStats.hp = Math.min(this.playerStats.maxHp, this.playerStats.hp + healAmount);
+      this.showFloatingText(this.player.x, this.player.y - 20, `+${healAmount}`, "#00ff00");
+
+      // visual effect
+      const line = this.add.graphics();
+      line.lineStyle(6, 0xff0000);
+      line.beginPath();
+      line.moveTo(this.player.x, this.player.y);
+      line.lineTo(this.enemy.x, this.enemy.y);
+      line.strokePath();
+      this.time.delayedCall(150, () => line.destroy());
+    }
+  }
+
+  castFreeze(time: number) {
+    const proj = this.add.circle(this.player.x, this.player.y, 8, 0x00ffff) as any;
+    this.physics.add.existing(proj);
+    this.projectiles.add(proj);
+    proj.isFreeze = true;
+    proj.castTime = time;
+    this.physics.moveToObject(proj, this.enemy, 350);
+    this.time.delayedCall(2000, () => { if (proj.active) proj.destroy(); });
+  }
+
+  castEarthquake(damage: number) {
+    this.cameras.main.shake(300, 0.02);
+
+    if (Math.random() < 0.1) {
+      this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
+    } else {
+      let actualDmg = Math.max(1, damage - this.enemyStats.defense);
+      let isCrit = false;
+      if (Math.random() < 0.15) {
+        actualDmg *= 2;
+        isCrit = true;
+      }
+      this.enemyStats.hp -= actualDmg;
+      this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#8b4513");
+
+      // pushback
+      const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, this.enemy.x, this.enemy.y);
+      if (this.enemy && this.enemy.active && this.enemy.body) {
+        (this.enemy.body as Phaser.Physics.Arcade.Body).setVelocity(Math.cos(angle) * 300, Math.sin(angle) * 300);
+      }
+      this.time.delayedCall(200, () => {
+        if (this.enemyFrozenTime === 0 && this.enemy && this.enemy.active && this.enemy.body) {
+          (this.enemy.body as Phaser.Physics.Arcade.Body).setVelocity(0,0);
+        }
+      });
+    }
+  }
+
   castLightning(damage: number) {
     // Instant line
     const graphics = this.add.graphics();
@@ -398,6 +484,10 @@ export class BattleScene extends Phaser.Scene {
     const proj = projectile as any;
     if (proj.isPoison) {
       this.applyPoisonTick(5); // 5 ticks of poison
+    } else if (proj.isFreeze) {
+      this.enemyFrozenTime = this.time.now;
+      this.enemy.setTint(0x00ffff);
+      this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Frozen!", "#00ffff");
     } else {
       if (Math.random() < 0.1) {
         this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");

@@ -32,7 +32,7 @@ export class AIManager {
     }
 
     const systemPrompt = `You are a tactical assistant for an autobattler game.
-The player has the following skills available: "Fireball" (ranged damage), "Slash" (melee damage), "Heal" (restores HP), "Shield" (buffs defense), "Poison" (damage over time), and "Lightning" (instant high damage).
+The player has the following skills available: "Fireball" (ranged damage), "Slash" (melee damage), "Heal" (restores HP), "Shield" (buffs defense), "Poison" (damage over time), "Lightning" (instant high damage), "Vampiric Drain" (damage and heal), "Freeze" (stuns enemy), and "Earthquake" (AoE knockback).
 Based on the player's instructions and current combat context, you must output a valid JSON object.
 Do NOT include markdown formatting or any text outside of the JSON object. Just the JSON object.
 
@@ -40,7 +40,7 @@ The JSON schema must strictly match:
 {
   "aggressiveness": number, // 0.0 for full defense, 1.0 for full attack
   "preferred_distance": string, // must be one of: "melee", "mid", "ranged"
-  "skill_priorities": string[], // array of skill names in order of preference, e.g. ["Lightning", "Fireball", "Slash", "Heal", "Shield", "Poison"]
+  "skill_priorities": string[], // array of skill names in order of preference, e.g. ["Vampiric Drain", "Freeze", "Earthquake", "Lightning", "Fireball", "Slash", "Heal", "Shield", "Poison"]
   "flee_threshold": number, // HP percentage (0-100) below which to flee
   "healing_threshold": number, // HP percentage (0-100) below which to prioritize Heal
   "tactical_logic": string // A brief sentence explaining the choice
@@ -73,7 +73,7 @@ ${context || 'No specific combat context.'}`;
       return {
         aggressiveness: 0.5,
         preferred_distance: 'mid',
-        skill_priorities: ['Slash', 'Fireball'],
+        skill_priorities: ['Vampiric Drain', 'Earthquake', 'Freeze', 'Slash', 'Fireball'],
         flee_threshold: 20,
         healing_threshold: 30,
         tactical_logic: 'Fallback strategy due to parsing error.'
