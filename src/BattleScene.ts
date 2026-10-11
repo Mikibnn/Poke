@@ -4,7 +4,7 @@ import type { StrategyJSON } from './AIManager';
 export interface BattleData {
   strategy: StrategyJSON;
   playerStats: { hp: number; maxHp: number; attack: number; defense: number, isEvolved?: boolean };
-  enemyStats?: { hp: number; maxHp: number; attack: number; defense: number };
+  enemyStats?: { hp: number; maxHp: number; attack: number; defense: number, name?: string, color?: number };
 }
 
 export class BattleScene extends Phaser.Scene {
@@ -15,7 +15,7 @@ export class BattleScene extends Phaser.Scene {
 
   strategy!: StrategyJSON;
   playerStats!: { hp: number; maxHp: number; attack: number; defense: number, isEvolved?: boolean };
-  enemyStats = { hp: 100, maxHp: 100, attack: 10, defense: 5 };
+  enemyStats = { hp: 100, maxHp: 100, attack: 10, defense: 5, name: "Enemy", color: 0xffffff };
 
   lastSkillTime = 0;
   skillCooldown = 1500; // ms
@@ -83,7 +83,7 @@ export class BattleScene extends Phaser.Scene {
     };
     this.playerStats = data.playerStats || { hp: 100, maxHp: 100, attack: 10, defense: 5 };
     if (data.enemyStats) {
-      this.enemyStats = data.enemyStats;
+      this.enemyStats = { ...this.enemyStats, ...data.enemyStats };
     }
   }
 
@@ -128,6 +128,9 @@ export class BattleScene extends Phaser.Scene {
     // Enemy
     this.enemy = this.add.image(600, 300, 'enemyTex') as any;
     this.enemy.setScale(4);
+    if (this.enemyStats.color !== undefined) {
+      this.enemy.setTint(this.enemyStats.color);
+    }
     this.physics.add.existing(this.enemy);
     this.enemy.body.setCollideWorldBounds(true);
     // Add simple breathing animation
@@ -192,11 +195,51 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  audioCtx: AudioContext | null = null;
+
+  playSound(type: 'hit' | 'shoot') {
+    if (!this.audioCtx) {
+      try {
+        this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      } catch (e) {
+        return; // Web Audio API not supported
+      }
+    }
+    if (this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume();
+    }
+
+    const osc = this.audioCtx.createOscillator();
+    const gainNode = this.audioCtx.createGain();
+
+    osc.connect(gainNode);
+    gainNode.connect(this.audioCtx.destination);
+
+    if (type === 'hit') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, this.audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(40, this.audioCtx.currentTime + 0.1);
+      gainNode.gain.setValueAtTime(0.3, this.audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.1);
+      osc.start();
+      osc.stop(this.audioCtx.currentTime + 0.1);
+    } else if (type === 'shoot') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, this.audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(300, this.audioCtx.currentTime + 0.1);
+      gainNode.gain.setValueAtTime(0.1, this.audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioCtx.currentTime + 0.1);
+      osc.start();
+      osc.stop(this.audioCtx.currentTime + 0.1);
+    }
+  }
+
   logEvent(msg: string) {
     window.dispatchEvent(new CustomEvent('combat-log', { detail: msg }));
   }
 
   playAttackAnim(attacker: Phaser.GameObjects.Image) {
+    this.playSound('shoot');
     const originalScaleX = attacker.scaleX;
     const originalScaleY = attacker.scaleY;
     this.tweens.add({
@@ -215,6 +258,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   playHurtAnim(victim: Phaser.GameObjects.Image) {
+    this.playSound('hit');
     const originalX = victim.x;
     victim.setTint(0xff0000);
     this.tweens.add({
@@ -371,7 +415,7 @@ export class BattleScene extends Phaser.Scene {
         else chosenSkill = 'Poison';
       }
 
-      this.logEvent(`Enemy casts ${chosenSkill}`);
+      this.logEvent(`${this.enemyStats.name} casts ${chosenSkill}`);
 
       if (chosenSkill === 'Slash') {
         if (dist < 60) {
@@ -387,7 +431,7 @@ export class BattleScene extends Phaser.Scene {
             }
             this.playerStats.hp -= dmg;
             this.showFloatingText(this.player.x, this.player.y - 20, `-${Math.floor(dmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ff0000");
-            this.logEvent(`Enemy Slash hits Hero for ${Math.floor(dmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
+            this.logEvent(`${this.enemyStats.name}'s Slash hits Hero for ${Math.floor(dmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
             this.playHurtAnim(this.player);
 
             const slash = this.add.rectangle(this.player.x, this.player.y, 50, 5, 0xffffff);
@@ -455,7 +499,7 @@ export class BattleScene extends Phaser.Scene {
           }
           this.playerStats.hp -= actualDmg;
           this.showFloatingText(this.player.x, this.player.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ff0000");
-          this.logEvent(`Enemy Lightning strikes Hero for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
+          this.logEvent(`${this.enemyStats.name}'s Lightning strikes Hero for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
           this.playHurtAnim(this.player);
         }
 
@@ -509,7 +553,7 @@ export class BattleScene extends Phaser.Scene {
         }
         this.enemyStats.hp -= actualDmg;
         this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ffffff");
-        this.logEvent(`Slash hits Enemy for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
+        this.logEvent(`Slash hits ${this.enemyStats.name} for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
 
         this.playHurtAnim(this.enemy);
 
@@ -641,7 +685,7 @@ export class BattleScene extends Phaser.Scene {
       }
       this.enemyStats.hp -= actualDmg;
       this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#8b4513");
-      this.logEvent(`Earthquake hits Enemy for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
+      this.logEvent(`Earthquake hits ${this.enemyStats.name} for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
 
       this.playHurtAnim(this.enemy);
 
@@ -694,7 +738,7 @@ export class BattleScene extends Phaser.Scene {
       }
       this.enemyStats.hp -= actualDmg;
       this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ffff00");
-      this.logEvent(`Lightning strikes Enemy for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
+      this.logEvent(`Lightning strikes ${this.enemyStats.name} for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
       this.playHurtAnim(this.enemy);
     }
 
@@ -749,7 +793,7 @@ export class BattleScene extends Phaser.Scene {
           }
           this.playerStats.hp -= actualDmg;
           this.showFloatingText(this.player.x, this.player.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ff0000");
-          this.logEvent(`Enemy Fireball hits Hero for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
+          this.logEvent(`${this.enemyStats.name}'s Fireball hits Hero for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
           this.playHurtAnim(this.player);
         }
       }
@@ -757,12 +801,12 @@ export class BattleScene extends Phaser.Scene {
       // Hit Enemy
       if (proj.isPoison) {
         this.applyPoisonTick(5);
-        this.logEvent("Enemy is Poisoned!");
+        this.logEvent(`${this.enemyStats.name} is Poisoned!`);
       } else if (proj.isFreeze) {
         this.enemyFrozenTime = this.time.now;
         this.enemy.setTint(0x00ffff);
         this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Frozen!", "#00ffff");
-        this.logEvent("Enemy is Frozen!");
+        this.logEvent(`${this.enemyStats.name} is Frozen!`);
       } else {
         if (Math.random() < 0.1) {
           this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
@@ -776,7 +820,7 @@ export class BattleScene extends Phaser.Scene {
           }
           this.enemyStats.hp -= actualDmg;
           this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ffa500");
-          this.logEvent(`Fireball hits Enemy for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
+          this.logEvent(`Fireball hits ${this.enemyStats.name} for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
           this.playHurtAnim(this.enemy);
         }
       }

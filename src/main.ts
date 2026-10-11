@@ -110,6 +110,17 @@ async function init() {
   document.getElementById('train-btn')!.addEventListener('click', handleTrain);
   document.getElementById('rest-btn')!.addEventListener('click', handleRest);
 
+  document.getElementById('reset-btn')!.addEventListener('click', async () => {
+    if (confirm("Are you sure you want to reset all progress? This cannot be undone.")) {
+      await db.MonsterStats.clear();
+      await db.Inventory.clear();
+      isResting = false;
+      await initDB();
+      await renderHomeStats();
+      alert("Progress reset!");
+    }
+  });
+
   async function renderShop() {
     const stats = await db.MonsterStats.get(1);
     if (!stats) return;
@@ -362,6 +373,14 @@ async function init() {
       // Wait a tick for scene to register, then start with data
       setTimeout(() => {
         const stage = stats.currentStage || 1;
+
+        // Determine enemy appearance based on stage
+        const enemyNames = ["Slime", "Goblin", "Orc", "Troll", "Dragon Whelp", "Dark Knight", "Demon", "Lich"];
+        const enemyColors = [0x00ff00, 0x88cc00, 0x008800, 0x888888, 0xff4444, 0x222222, 0xff0000, 0xaa00aa];
+
+        const enemyName = enemyNames[(stage - 1) % enemyNames.length];
+        const enemyColor = enemyColors[(stage - 1) % enemyColors.length];
+
         gameInstance!.scene.start('BattleScene', {
           strategy: currentStrategy,
           playerStats: {
@@ -372,6 +391,8 @@ async function init() {
             isEvolved: stats.isEvolved
           },
           enemyStats: {
+            name: enemyName,
+            color: enemyColor,
             hp: 50 + (stage * 20),
             maxHp: 50 + (stage * 20),
             attack: 5 + (stage * 3),
