@@ -4,6 +4,7 @@ import type { StrategyJSON } from './AIManager';
 export interface BattleData {
   strategy: StrategyJSON;
   playerStats: { hp: number; maxHp: number; attack: number; defense: number };
+  enemyStats?: { hp: number; maxHp: number; attack: number; defense: number };
 }
 
 export class BattleScene extends Phaser.Scene {
@@ -68,6 +69,9 @@ export class BattleScene extends Phaser.Scene {
       tactical_logic: 'Fallback'
     };
     this.playerStats = data.playerStats || { hp: 100, maxHp: 100, attack: 10, defense: 5 };
+    if (data.enemyStats) {
+      this.enemyStats = data.enemyStats;
+    }
   }
 
   create() {
@@ -146,6 +150,18 @@ export class BattleScene extends Phaser.Scene {
       this.isGameOver = true;
       window.dispatchEvent(new CustomEvent('battle-end', { detail: { win: true } }));
     }
+  }
+
+  showFloatingText(x: number, y: number, text: string, color: string) {
+    const floatText = this.add.text(x, y, text, { font: '16px Arial', color: color, stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+    this.tweens.add({
+      targets: floatText,
+      y: y - 50,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Power1',
+      onComplete: () => floatText.destroy()
+    });
   }
 
   updateHealthBars() {
@@ -234,13 +250,28 @@ export class BattleScene extends Phaser.Scene {
 
       // Random enemy attack logic
       if (Phaser.Math.Distance.Between(this.player.x, this.player.y, this.enemy.x, this.enemy.y) < 60) {
-        let dmg = Math.max(1, this.enemyStats.attack - this.playerStats.defense);
-        this.playerStats.hp -= dmg;
-        // visual flash
-        this.player.setTint(0xff0000);
-        this.time.delayedCall(100, () => {
-          if (this.player) this.player.clearTint();
-        });
+        // 10% chance for player to dodge
+        if (Math.random() < 0.1) {
+          this.showFloatingText(this.player.x, this.player.y - 20, "Dodge!", "#aaaaaa");
+        } else {
+          let dmg = Math.max(1, this.enemyStats.attack - this.playerStats.defense);
+
+          // 15% chance for enemy to crit
+          let isCrit = false;
+          if (Math.random() < 0.15) {
+            dmg *= 2;
+            isCrit = true;
+          }
+
+          this.playerStats.hp -= dmg;
+          this.showFloatingText(this.player.x, this.player.y - 20, `-${dmg}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ff0000");
+
+          // visual flash
+          this.player.setTint(0xff0000);
+          this.time.delayedCall(100, () => {
+            if (this.player) this.player.clearTint();
+          });
+        }
       }
     }
   }
@@ -264,16 +295,31 @@ export class BattleScene extends Phaser.Scene {
   castSlash(damage: number) {
     const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.enemy.x, this.enemy.y);
     if (dist < 60) {
-      this.enemyStats.hp -= Math.max(1, damage - this.enemyStats.defense);
-      // visual slash effect
-      const slash = this.add.rectangle(this.enemy.x, this.enemy.y, 50, 5, 0xffffff);
-      slash.setAngle(Phaser.Math.Between(0, 180));
-      this.time.delayedCall(100, () => slash.destroy());
+      if (Math.random() < 0.1) {
+        this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
+      } else {
+        let actualDmg = Math.max(1, damage - this.enemyStats.defense);
+        let isCrit = false;
+        if (Math.random() < 0.15) {
+          actualDmg *= 2;
+          isCrit = true;
+        }
+        this.enemyStats.hp -= actualDmg;
+        this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ffffff");
+
+        // visual slash effect
+        const slash = this.add.rectangle(this.enemy.x, this.enemy.y, 50, 5, 0xffffff);
+        slash.setAngle(Phaser.Math.Between(0, 180));
+        this.time.delayedCall(100, () => slash.destroy());
+      }
     }
   }
 
   castHeal() {
-    this.playerStats.hp = Math.min(this.playerStats.maxHp, this.playerStats.hp + 30);
+    const healAmount = 30;
+    this.playerStats.hp = Math.min(this.playerStats.maxHp, this.playerStats.hp + healAmount);
+    this.showFloatingText(this.player.x, this.player.y - 20, `+${healAmount}`, "#00ff00");
+
     const healEffect = this.add.circle(this.player.x, this.player.y, 30, 0x00ff00, 0.5);
     this.tweens.add({
       targets: healEffect,
@@ -310,7 +356,18 @@ export class BattleScene extends Phaser.Scene {
     graphics.lineTo(this.enemy.x, this.enemy.y);
     graphics.strokePath();
 
-    this.enemyStats.hp -= Math.max(1, damage - this.enemyStats.defense);
+    if (Math.random() < 0.1) {
+      this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
+    } else {
+      let actualDmg = Math.max(1, damage - this.enemyStats.defense);
+      let isCrit = false;
+      if (Math.random() < 0.15) {
+        actualDmg *= 2;
+        isCrit = true;
+      }
+      this.enemyStats.hp -= actualDmg;
+      this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ffff00");
+    }
 
     this.time.delayedCall(150, () => graphics.destroy());
   }
@@ -318,6 +375,8 @@ export class BattleScene extends Phaser.Scene {
   applyPoisonTick(ticksRemaining: number) {
     if (ticksRemaining <= 0 || this.isGameOver) return;
     this.enemyStats.hp -= 2; // Flat poison damage
+    this.showFloatingText(this.enemy.x, this.enemy.y - 20, "-2", "#800080");
+
     this.enemy.setTint(0x800080);
     this.time.delayedCall(200, () => { if (this.enemy) this.enemy.clearTint(); });
 
@@ -329,7 +388,18 @@ export class BattleScene extends Phaser.Scene {
     if (proj.isPoison) {
       this.applyPoisonTick(5); // 5 ticks of poison
     } else {
-      this.enemyStats.hp -= Math.max(1, proj.damage - this.enemyStats.defense);
+      if (Math.random() < 0.1) {
+        this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
+      } else {
+        let actualDmg = Math.max(1, proj.damage - this.enemyStats.defense);
+        let isCrit = false;
+        if (Math.random() < 0.15) {
+          actualDmg *= 2;
+          isCrit = true;
+        }
+        this.enemyStats.hp -= actualDmg;
+        this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ffa500");
+      }
     }
     proj.destroy();
   }

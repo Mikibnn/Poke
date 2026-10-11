@@ -10,6 +10,7 @@ export interface MonsterStats {
   xp: number;
   level: number;
   hunger: number;
+  currentStage: number;
 }
 
 export interface InventoryItem {
@@ -52,7 +53,8 @@ export async function initDB() {
       currency: 100, // starting with some currency
       xp: 0,
       level: 1,
-      hunger: 100
+      hunger: 100,
+      currentStage: 1
     });
 
     // Add default skills

@@ -16,6 +16,7 @@ async function renderHomeStats() {
   if (stats) {
     const display = document.getElementById('stats-display')!;
     display.innerHTML = `
+      <h2>Stage: ${stats.currentStage || 1}</h2>
       <p>Level: ${stats.level} (XP: ${stats.xp})</p>
       <p>HP: ${stats.hp}</p>
       <p>Attack: ${stats.attack}</p>
@@ -219,6 +220,7 @@ async function init() {
 
       // Wait a tick for scene to register, then start with data
       setTimeout(() => {
+        const stage = stats.currentStage || 1;
         gameInstance!.scene.start('BattleScene', {
           strategy: currentStrategy,
           playerStats: {
@@ -226,6 +228,12 @@ async function init() {
             maxHp: stats.hp,
             attack: stats.attack,
             defense: stats.defense
+          },
+          enemyStats: {
+            hp: 50 + (stage * 20),
+            maxHp: 50 + (stage * 20),
+            attack: 5 + (stage * 3),
+            defense: Math.floor(stage * 1.5)
           }
         });
       }, 100);
@@ -281,14 +289,34 @@ async function init() {
   // Listen for Battle End Event
   window.addEventListener('battle-end', async (e: any) => {
     const { win } = e.detail;
-    alert(win ? 'You won! +50 Coins' : 'You lost!');
 
     if (win) {
       const stats = await db.MonsterStats.get(1);
       if (stats) {
-        stats.currency += 50;
+        const stage = stats.currentStage || 1;
+        const coinsEarned = 20 + (stage * 10);
+        const xpEarned = 30 + (stage * 15);
+
+        stats.currency += coinsEarned;
+        stats.xp += xpEarned;
+        stats.currentStage = stage + 1;
+
+        // Level up check
+        if (stats.xp >= stats.level * 100) {
+          stats.xp = 0;
+          stats.level += 1;
+          stats.hp += 10;
+          stats.attack += 2;
+          stats.defense += 1;
+          alert(`You won! Earned ${coinsEarned} Coins, ${xpEarned} XP. LEVEL UP to ${stats.level}! Next Stage: ${stats.currentStage}`);
+        } else {
+          alert(`You won! Earned ${coinsEarned} Coins, ${xpEarned} XP. Next Stage: ${stats.currentStage}`);
+        }
+
         await db.MonsterStats.put(stats);
       }
+    } else {
+      alert('You lost!');
     }
 
     if (gameInstance) {
