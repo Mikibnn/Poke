@@ -11,6 +11,8 @@ export interface MonsterStats {
   level: number;
   hunger: number;
   currentStage: number;
+  fatigue: number;
+  isEvolved: boolean;
 }
 
 export interface InventoryItem {
@@ -54,7 +56,9 @@ export async function initDB() {
       xp: 0,
       level: 1,
       hunger: 100,
-      currentStage: 1
+      currentStage: 1,
+      fatigue: 0,
+      isEvolved: false
     });
 
     // Add default skills

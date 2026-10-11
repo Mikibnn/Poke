@@ -1,109 +1,150 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
 :root {
-  --text: #e2e8f0;
-  --bg: #0f172a;
-  --border: #334155;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --panel-bg: #1e293b;
-  --danger: #ef4444;
-  --success: #10b981;
-  --warning: #f59e0b;
+  --text: #00ffcc;
+  --text-dark: #008f72;
+  --bg: #050a1f;
+  --bg-gradient: linear-gradient(135deg, #050a1f 0%, #1a0b2e 100%);
+  --border: #ff00ff;
+  --accent: #ff00ff;
+  --accent-hover: #ff4dff;
+  --panel-bg: rgba(15, 23, 42, 0.8);
+  --danger: #ff0055;
+  --success: #00ffcc;
+  --warning: #ffaa00;
+  --glow: 0 0 10px rgba(255, 0, 255, 0.5), 0 0 20px rgba(255, 0, 255, 0.3);
 }
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: var(--bg);
+  font-family: 'VT323', monospace;
+  font-size: 24px;
+  background: var(--bg-gradient);
   color: var(--text);
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 #app {
   width: 100%;
-  max-width: 800px;
+  max-width: 900px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 20px;
 }
 
 .screen {
   background: var(--panel-bg);
   padding: 2rem;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+  border-radius: 4px;
+  box-shadow: var(--glow);
   width: 100%;
   box-sizing: border-box;
   text-align: center;
-  border: 1px solid var(--border);
+  border: 2px solid var(--border);
+  backdrop-filter: blur(10px);
 }
 
-h1, h2, h3 {
-  color: #f8fafc;
+h1 {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 28px;
+  color: var(--accent);
+  text-shadow: 2px 2px 0px #000;
+  margin-bottom: 30px;
+  text-transform: uppercase;
+}
+
+h2, h3 {
+  color: var(--success);
   margin-top: 0;
+  text-shadow: 1px 1px 0px #000;
 }
 
 button {
-  background-color: var(--accent);
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  margin: 8px;
-  border-radius: 6px;
-  font-size: 16px;
+  font-family: 'Press Start 2P', cursive;
+  background-color: transparent;
+  color: var(--accent);
+  border: 2px solid var(--accent);
+  padding: 15px 25px;
+  margin: 10px;
+  border-radius: 0;
+  font-size: 14px;
   cursor: pointer;
-  font-weight: 600;
-  transition: background-color 0.2s, transform 0.1s;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  box-shadow: 0 0 5px var(--accent) inset;
 }
 
 button:hover {
-  background-color: var(--accent-hover);
+  background-color: var(--accent);
+  color: #000;
+  box-shadow: var(--glow);
 }
 
 button:active {
-  transform: translateY(2px);
+  transform: scale(0.95);
 }
 
 button:disabled {
-  background-color: var(--border);
+  border-color: #555;
+  color: #555;
+  box-shadow: none;
   cursor: not-allowed;
   transform: none;
 }
 
+button:disabled:hover {
+  background-color: transparent;
+  color: #555;
+}
+
 input, textarea {
   width: 90%;
-  padding: 12px;
-  margin: 10px 0;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background-color: var(--bg);
+  padding: 15px;
+  margin: 15px 0;
+  border-radius: 0;
+  border: 2px solid var(--text-dark);
+  background-color: rgba(0,0,0,0.5);
   color: var(--text);
-  font-family: inherit;
+  font-family: 'VT323', monospace;
+  font-size: 20px;
   resize: vertical;
 }
 
 input:focus, textarea:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
+  outline: none;
+  border-color: var(--success);
+  box-shadow: 0 0 10px var(--success);
 }
 
 #stats-display, #shop-stats-display {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  gap: 15px;
   text-align: left;
-  background: var(--bg);
-  padding: 15px;
-  border-radius: 8px;
-  margin-bottom: 20px;
+  background: rgba(0,0,0,0.4);
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 25px;
+  border: 1px solid var(--text-dark);
 }
 
 #stats-display p, #shop-stats-display p {
   margin: 5px 0;
-  font-weight: 500;
+  font-weight: normal;
+  text-shadow: 1px 1px #000;
+}
+
+#stats-display h2 {
+  grid-column: span 2;
+  text-align: center;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 10px;
 }
 
 ul {
@@ -144,12 +185,54 @@ pre {
   font-size: 14px;
 }
 
+#game-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+}
+
 #game-container {
   display: flex;
   justify-content: center;
   overflow: hidden;
   border-radius: 8px;
   border: 2px solid var(--border);
+}
+
+#combat-log {
+  width: 100%;
+  max-width: 800px;
+  height: 200px;
+  overflow-y: auto;
+  background-color: rgba(0,0,0,0.8);
+  border: 2px solid var(--success);
+  border-radius: 0;
+  padding: 15px;
+  text-align: left;
+  font-family: 'VT323', monospace;
+  font-size: 22px;
+  box-sizing: border-box;
+  box-shadow: 0 0 10px rgba(0, 255, 204, 0.2) inset;
+}
+
+#combat-log p {
+  margin: 4px 0;
+  border-bottom: 1px dashed var(--text-dark);
+  padding-bottom: 4px;
+  text-shadow: 1px 1px #000;
+}
+
+#combat-log::-webkit-scrollbar {
+  width: 10px;
+}
+
+#combat-log::-webkit-scrollbar-track {
+  background: #000;
+}
+
+#combat-log::-webkit-scrollbar-thumb {
+  background: var(--success);
 }
 
 #tactics-overlay {

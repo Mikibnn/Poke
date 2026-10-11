@@ -3,7 +3,7 @@ import type { StrategyJSON } from './AIManager';
 
 export interface BattleData {
   strategy: StrategyJSON;
-  playerStats: { hp: number; maxHp: number; attack: number; defense: number };
+  playerStats: { hp: number; maxHp: number; attack: number; defense: number, isEvolved?: boolean };
   enemyStats?: { hp: number; maxHp: number; attack: number; defense: number };
 }
 
@@ -14,7 +14,7 @@ export class BattleScene extends Phaser.Scene {
   enemyHealthBar!: Phaser.GameObjects.Rectangle;
 
   strategy!: StrategyJSON;
-  playerStats!: { hp: number; maxHp: number; attack: number; defense: number };
+  playerStats!: { hp: number; maxHp: number; attack: number; defense: number, isEvolved?: boolean };
   enemyStats = { hp: 100, maxHp: 100, attack: 10, defense: 5 };
 
   lastSkillTime = 0;
@@ -90,14 +90,32 @@ export class BattleScene extends Phaser.Scene {
 
     // Player
     this.player = this.add.image(200, 300, 'heroTex') as any;
-    this.player.setScale(4);
+
+    let baseScale = 4;
+    if (this.playerStats.isEvolved) {
+      baseScale = 6;
+      this.player.setTint(0xffd700); // Gold tint
+
+      // Evolved particle aura
+      this.add.particles(0, 0, 'heroTex', {
+        speed: 20,
+        scale: { start: 0.2, end: 0 },
+        blendMode: 'ADD',
+        lifespan: 500,
+        tint: 0xffd700,
+        frequency: 100,
+        follow: this.player
+      });
+    }
+
+    this.player.setScale(baseScale);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
     // Add simple breathing animation
     this.tweens.add({
       targets: this.player,
-      scaleY: 3.8,
-      scaleX: 4.2,
+      scaleY: baseScale * 0.95,
+      scaleX: baseScale * 1.05,
       duration: 800,
       yoyo: true,
       repeat: -1,
@@ -167,6 +185,10 @@ export class BattleScene extends Phaser.Scene {
       this.isGameOver = true;
       window.dispatchEvent(new CustomEvent('battle-end', { detail: { win: true } }));
     }
+  }
+
+  logEvent(msg: string) {
+    window.dispatchEvent(new CustomEvent('combat-log', { detail: msg }));
   }
 
   showFloatingText(x: number, y: number, text: string, color: string) {
@@ -259,6 +281,8 @@ export class BattleScene extends Phaser.Scene {
 
       const baseDamage = this.playerStats.attack * (0.5 + ((this.strategy.aggressiveness || 0.5) * 0.5));
 
+      this.logEvent(`Hero casts ${primarySkill}`);
+
       if (primarySkill === 'Heal') {
         this.castHeal();
       } else if (primarySkill === 'Shield') {
@@ -284,6 +308,7 @@ export class BattleScene extends Phaser.Scene {
         // 10% chance for player to dodge
         if (Math.random() < 0.1) {
           this.showFloatingText(this.player.x, this.player.y - 20, "Dodge!", "#aaaaaa");
+          this.logEvent("Hero dodged enemy attack!");
         } else {
           let dmg = Math.max(1, this.enemyStats.attack - this.playerStats.defense);
 
@@ -296,6 +321,7 @@ export class BattleScene extends Phaser.Scene {
 
           this.playerStats.hp -= dmg;
           this.showFloatingText(this.player.x, this.player.y - 20, `-${dmg}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ff0000");
+          this.logEvent(`Enemy attacks Hero for ${dmg} damage${isCrit ? ' (Critical Hit!)' : ''}`);
 
           // visual flash
           this.player.setTint(0xff0000);
@@ -312,14 +338,28 @@ export class BattleScene extends Phaser.Scene {
     this.physics.add.existing(proj);
     this.projectiles.add(proj);
 
+    // Add particle trail
+    const particles = this.add.particles(0, 0, 'heroTex', {
+      speed: 50,
+      scale: { start: 0.5, end: 0 },
+      blendMode: 'ADD',
+      lifespan: 300,
+      tint: 0xffa500
+    });
+    particles.startFollow(proj);
+
     // @ts-ignore attach damage
     proj.damage = damage;
+    proj.particles = particles;
 
     this.physics.moveToObject(proj, this.enemy, 300);
 
     // Destroy after 3s
     this.time.delayedCall(3000, () => {
-        if (proj.active) proj.destroy();
+        if (proj.active) {
+          proj.destroy();
+          if (proj.particles) proj.particles.destroy();
+        }
     });
   }
 
@@ -328,6 +368,7 @@ export class BattleScene extends Phaser.Scene {
     if (dist < 60) {
       if (Math.random() < 0.1) {
         this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
+        this.logEvent("Enemy dodged Slash!");
       } else {
         let actualDmg = Math.max(1, damage - this.enemyStats.defense);
         let isCrit = false;
@@ -337,6 +378,7 @@ export class BattleScene extends Phaser.Scene {
         }
         this.enemyStats.hp -= actualDmg;
         this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ffffff");
+        this.logEvent(`Slash hits Enemy for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
 
         // visual slash effect
         const slash = this.add.rectangle(this.enemy.x, this.enemy.y, 50, 5, 0xffffff);
@@ -350,6 +392,20 @@ export class BattleScene extends Phaser.Scene {
     const healAmount = 30;
     this.playerStats.hp = Math.min(this.playerStats.maxHp, this.playerStats.hp + healAmount);
     this.showFloatingText(this.player.x, this.player.y - 20, `+${healAmount}`, "#00ff00");
+    this.logEvent(`Hero heals for ${healAmount} HP`);
+
+    // Healing Particles
+    const particles = this.add.particles(this.player.x, this.player.y, 'heroTex', {
+      speed: { min: -100, max: 100 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 0.5, end: 0 },
+      blendMode: 'ADD',
+      lifespan: 800,
+      tint: 0x00ff00,
+      gravityY: -200,
+      quantity: 15
+    });
+    this.time.delayedCall(800, () => particles.destroy());
 
     const healEffect = this.add.circle(this.player.x, this.player.y, 30, 0x00ff00, 0.5);
     this.tweens.add({
@@ -364,6 +420,7 @@ export class BattleScene extends Phaser.Scene {
   castShield(time: number) {
     if (this.playerShieldedTime === 0) {
       this.playerStats.defense *= 2; // Buff defense
+      this.logEvent("Hero activates Shield! Defense doubled.");
     }
     this.playerShieldedTime = time;
     this.player.setTint(0x8888ff);
@@ -374,13 +431,30 @@ export class BattleScene extends Phaser.Scene {
     this.physics.add.existing(proj);
     this.projectiles.add(proj);
     proj.isPoison = true;
+
+    const particles = this.add.particles(0, 0, 'heroTex', {
+      speed: 20,
+      scale: { start: 0.3, end: 0 },
+      lifespan: 400,
+      tint: 0x800080,
+      frequency: 50
+    });
+    particles.startFollow(proj);
+    proj.particles = particles;
+
     this.physics.moveToObject(proj, this.enemy, 250);
-    this.time.delayedCall(3000, () => { if (proj.active) proj.destroy(); });
+    this.time.delayedCall(3000, () => {
+      if (proj.active) {
+        proj.destroy();
+        if (proj.particles) proj.particles.destroy();
+      }
+    });
   }
 
   castVampiricDrain(damage: number) {
     if (Math.random() < 0.1) {
       this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
+      this.logEvent("Enemy dodged Vampiric Drain!");
     } else {
       let actualDmg = Math.max(1, damage - this.enemyStats.defense);
       let isCrit = false;
@@ -394,6 +468,7 @@ export class BattleScene extends Phaser.Scene {
       const healAmount = Math.floor(actualDmg * 0.5);
       this.playerStats.hp = Math.min(this.playerStats.maxHp, this.playerStats.hp + healAmount);
       this.showFloatingText(this.player.x, this.player.y - 20, `+${healAmount}`, "#00ff00");
+      this.logEvent(`Vampiric Drain hits for ${Math.floor(actualDmg)} damage and heals Hero for ${healAmount}`);
 
       // visual effect
       const line = this.add.graphics();
@@ -421,6 +496,7 @@ export class BattleScene extends Phaser.Scene {
 
     if (Math.random() < 0.1) {
       this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
+      this.logEvent("Enemy dodged Earthquake!");
     } else {
       let actualDmg = Math.max(1, damage - this.enemyStats.defense);
       let isCrit = false;
@@ -430,6 +506,7 @@ export class BattleScene extends Phaser.Scene {
       }
       this.enemyStats.hp -= actualDmg;
       this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#8b4513");
+      this.logEvent(`Earthquake hits Enemy for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
 
       // pushback
       const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, this.enemy.x, this.enemy.y);
@@ -450,11 +527,27 @@ export class BattleScene extends Phaser.Scene {
     graphics.lineStyle(4, 0xffff00);
     graphics.beginPath();
     graphics.moveTo(this.player.x, this.player.y);
+    // Add jitter to lightning
+    const midX = (this.player.x + this.enemy.x) / 2 + (Math.random() * 40 - 20);
+    const midY = (this.player.y + this.enemy.y) / 2 + (Math.random() * 40 - 20);
+    graphics.lineTo(midX, midY);
     graphics.lineTo(this.enemy.x, this.enemy.y);
     graphics.strokePath();
 
+    // Sparks at target
+    const particles = this.add.particles(this.enemy.x, this.enemy.y, 'heroTex', {
+      speed: 150,
+      scale: { start: 0.2, end: 0 },
+      blendMode: 'ADD',
+      lifespan: 300,
+      tint: 0xffff00,
+      quantity: 10
+    });
+    this.time.delayedCall(300, () => particles.destroy());
+
     if (Math.random() < 0.1) {
       this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
+      this.logEvent("Enemy dodged Lightning!");
     } else {
       let actualDmg = Math.max(1, damage - this.enemyStats.defense);
       let isCrit = false;
@@ -464,6 +557,7 @@ export class BattleScene extends Phaser.Scene {
       }
       this.enemyStats.hp -= actualDmg;
       this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ffff00");
+      this.logEvent(`Lightning strikes Enemy for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
     }
 
     this.time.delayedCall(150, () => graphics.destroy());
@@ -480,19 +574,26 @@ export class BattleScene extends Phaser.Scene {
     this.time.delayedCall(1000, () => this.applyPoisonTick(ticksRemaining - 1));
   }
 
-  handleProjectileHit(projectile: Phaser.GameObjects.GameObject, _enemy: Phaser.GameObjects.GameObject) {
+  handleProjectileHit(_enemy: Phaser.GameObjects.GameObject, projectile: Phaser.GameObjects.GameObject) {
     const proj = projectile as any;
+    if (proj.particles) {
+      proj.particles.destroy();
+    }
+
     if (proj.isPoison) {
       this.applyPoisonTick(5); // 5 ticks of poison
+      this.logEvent("Enemy is Poisoned!");
     } else if (proj.isFreeze) {
       this.enemyFrozenTime = this.time.now;
       this.enemy.setTint(0x00ffff);
       this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Frozen!", "#00ffff");
+      this.logEvent("Enemy is Frozen!");
     } else {
       if (Math.random() < 0.1) {
         this.showFloatingText(this.enemy.x, this.enemy.y - 20, "Dodge!", "#aaaaaa");
+        this.logEvent("Enemy dodged Fireball!");
       } else {
-        let actualDmg = Math.max(1, proj.damage - this.enemyStats.defense);
+        let actualDmg = Math.max(1, (proj.damage || 0) - this.enemyStats.defense);
         let isCrit = false;
         if (Math.random() < 0.15) {
           actualDmg *= 2;
@@ -500,6 +601,7 @@ export class BattleScene extends Phaser.Scene {
         }
         this.enemyStats.hp -= actualDmg;
         this.showFloatingText(this.enemy.x, this.enemy.y - 20, `-${Math.floor(actualDmg)}${isCrit ? ' CRIT!' : ''}`, isCrit ? "#ff8800" : "#ffa500");
+        this.logEvent(`Fireball hits Enemy for ${Math.floor(actualDmg)} damage${isCrit ? ' (Critical Hit!)' : ''}`);
       }
     }
     proj.destroy();

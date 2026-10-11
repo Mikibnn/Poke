@@ -4,6 +4,7 @@ import { aiManager, type StrategyJSON } from './AIManager'
 
 // App State
 let currentScreen = 'home-screen';
+let isResting = false;
 
 function showScreen(screenId: string) {
   document.getElementById(currentScreen)!.style.display = 'none';
@@ -23,18 +24,40 @@ async function renderHomeStats() {
       <p>Defense: ${stats.defense}</p>
       <p>Coins: ${stats.currency}</p>
       <p>Hunger: ${stats.hunger}</p>
+      <p>Fatigue: ${stats.fatigue || 0}/100</p>
     `;
+
+    const trainBtn = document.getElementById('train-btn') as HTMLButtonElement;
+    const prepBtn = document.getElementById('go-prep-btn') as HTMLButtonElement;
+    const restBtn = document.getElementById('rest-btn') as HTMLButtonElement;
+
+    const isExhausted = (stats.fatigue || 0) >= 100;
+    trainBtn.disabled = isExhausted || isResting;
+    prepBtn.disabled = isExhausted || isResting;
+    restBtn.disabled = isResting;
+
+    if (isResting) {
+      restBtn.textContent = "Sleeping... zZz";
+    } else {
+      restBtn.textContent = "Rest (-Fatigue)";
+    }
   }
 }
 
 async function handleTrain() {
+  if (isResting) return;
   const stats = await db.MonsterStats.get(1);
   if (stats) {
     if (stats.hunger < 10) {
       alert("Monster is too hungry to train!");
       return;
     }
+    if ((stats.fatigue || 0) >= 100) {
+      alert("Monster is too tired to train!");
+      return;
+    }
     stats.hunger -= 10;
+    stats.fatigue = Math.min((stats.fatigue || 0) + 20, 100);
     stats.xp += 10;
     if (stats.xp >= stats.level * 100) {
       stats.xp = 0;
@@ -45,6 +68,25 @@ async function handleTrain() {
     }
     await db.MonsterStats.put(stats);
     await renderHomeStats();
+  }
+}
+
+async function handleRest() {
+  if (isResting) return;
+  const stats = await db.MonsterStats.get(1);
+  if (stats) {
+    isResting = true;
+    renderHomeStats();
+
+    setTimeout(async () => {
+      const currentStats = await db.MonsterStats.get(1);
+      if (currentStats) {
+        currentStats.fatigue = 0;
+        await db.MonsterStats.put(currentStats);
+      }
+      isResting = false;
+      renderHomeStats();
+    }, 5000);
   }
 }
 
@@ -66,6 +108,7 @@ async function init() {
 
   // Setup Event Listeners
   document.getElementById('train-btn')!.addEventListener('click', handleTrain);
+  document.getElementById('rest-btn')!.addEventListener('click', handleRest);
 
   async function renderShop() {
     const stats = await db.MonsterStats.get(1);
@@ -89,6 +132,28 @@ async function init() {
             await db.MonsterStats.put(currentStats);
           } else if (item.item_name === 'Food') {
             currentStats.hunger = Math.min(currentStats.hunger + 30, 100);
+            await db.MonsterStats.put(currentStats);
+          } else if (item.item_name === 'Energy Drink') {
+            currentStats.fatigue = Math.max((currentStats.fatigue || 0) - 50, 0);
+            await db.MonsterStats.put(currentStats);
+          } else if (item.item_name === 'Mystery Box') {
+            const rng = Math.random();
+            if (rng < 0.33) {
+              currentStats.currency += 100;
+              alert("Mystery Box opened: +100 Coins!");
+            } else if (rng < 0.66) {
+              currentStats.xp += 100;
+              alert("Mystery Box opened: +100 XP!");
+            } else {
+              const pot = await db.Inventory.where('item_name').equals('Health Potion').first();
+              if (pot) {
+                pot.quantity += 1;
+                await db.Inventory.put(pot);
+              } else {
+                await db.Inventory.add({ item_name: 'Health Potion', type: 'consumable', quantity: 1 });
+              }
+              alert("Mystery Box opened: +1 Health Potion!");
+            }
             await db.MonsterStats.put(currentStats);
           }
           item.quantity -= 1;
@@ -159,6 +224,62 @@ async function init() {
     }
   });
 
+  const buyEnergyBtn = document.createElement('button');
+  buyEnergyBtn.id = 'buy-energy-btn';
+  buyEnergyBtn.textContent = 'Buy Energy Drink (30 coins)';
+  document.getElementById('shop-items')!.appendChild(buyEnergyBtn);
+
+  buyEnergyBtn.addEventListener('click', async () => {
+    const stats = await db.MonsterStats.get(1);
+    if (stats && stats.currency >= 30) {
+      stats.currency -= 30;
+      await db.MonsterStats.put(stats);
+
+      const existingItem = await db.Inventory.where('item_name').equals('Energy Drink').first();
+      if (existingItem) {
+        existingItem.quantity += 1;
+        await db.Inventory.put(existingItem);
+      } else {
+        await db.Inventory.add({
+          item_name: 'Energy Drink',
+          type: 'consumable',
+          quantity: 1
+        });
+      }
+      renderShop();
+    } else {
+      alert("Not enough coins!");
+    }
+  });
+
+  const buyMysteryBoxBtn = document.createElement('button');
+  buyMysteryBoxBtn.id = 'buy-mystery-box-btn';
+  buyMysteryBoxBtn.textContent = 'Buy Mystery Box (50 coins)';
+  document.getElementById('shop-items')!.appendChild(buyMysteryBoxBtn);
+
+  buyMysteryBoxBtn.addEventListener('click', async () => {
+    const stats = await db.MonsterStats.get(1);
+    if (stats && stats.currency >= 50) {
+      stats.currency -= 50;
+      await db.MonsterStats.put(stats);
+
+      const existingItem = await db.Inventory.where('item_name').equals('Mystery Box').first();
+      if (existingItem) {
+        existingItem.quantity += 1;
+        await db.Inventory.put(existingItem);
+      } else {
+        await db.Inventory.add({
+          item_name: 'Mystery Box',
+          type: 'consumable',
+          quantity: 1
+        });
+      }
+      renderShop();
+    } else {
+      alert("Not enough coins!");
+    }
+  });
+
   document.getElementById('go-prep-btn')!.addEventListener('click', () => {
     showScreen('prep-screen');
   });
@@ -216,9 +337,22 @@ async function init() {
   let gameInstance: Phaser.Game | null = null;
   startBattleBtn.addEventListener('click', async () => {
     if (currentStrategy) {
-      showScreen('game-screen');
       const stats = await db.MonsterStats.get(1);
       if (!stats) return;
+
+      if ((stats.fatigue || 0) >= 100) {
+        alert("Monster is too tired to fight!");
+        return;
+      }
+
+      stats.fatigue = Math.min((stats.fatigue || 0) + 30, 100);
+      await db.MonsterStats.put(stats);
+
+      showScreen('game-screen');
+
+      // Clear the combat log and initialize it with a start message
+      const logContainer = document.getElementById('combat-log');
+      if (logContainer) logContainer.innerHTML = '<p>--- Battle Started ---</p>';
 
       if (!gameInstance) {
         const { createGame } = await import('./game');
@@ -234,7 +368,8 @@ async function init() {
             hp: stats.hp,
             maxHp: stats.hp,
             attack: stats.attack,
-            defense: stats.defense
+            defense: stats.defense,
+            isEvolved: stats.isEvolved
           },
           enemyStats: {
             hp: 50 + (stage * 20),
@@ -293,6 +428,18 @@ async function init() {
     }
   });
 
+  // Combat Log Listener
+  window.addEventListener('combat-log', (e: any) => {
+    const msg = e.detail;
+    const logContainer = document.getElementById('combat-log');
+    if (logContainer) {
+      const p = document.createElement('p');
+      p.textContent = msg;
+      logContainer.appendChild(p);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+  });
+
   // Listen for Battle End Event
   window.addEventListener('battle-end', async (e: any) => {
     const { win } = e.detail;
@@ -318,6 +465,15 @@ async function init() {
           alert(`You won! Earned ${coinsEarned} Coins, ${xpEarned} XP. LEVEL UP to ${stats.level}! Next Stage: ${stats.currentStage}`);
         } else {
           alert(`You won! Earned ${coinsEarned} Coins, ${xpEarned} XP. Next Stage: ${stats.currentStage}`);
+        }
+
+        // Evolution check
+        if (stats.level >= 5 && !stats.isEvolved) {
+          stats.isEvolved = true;
+          stats.hp += 100;
+          stats.attack += 10;
+          stats.defense += 10;
+          alert("WHAT IS HAPPENING?! YOUR MONSTER HAS EVOLVED!");
         }
 
         await db.MonsterStats.put(stats);

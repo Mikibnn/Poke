@@ -11,7 +11,7 @@ export interface StrategyJSON {
 
 export class AIManager {
   private engine: MLCEngine | null = null;
-  private readonly modelId = 'SmolLM2-1.7B-Instruct-q4f16_1-MLC'; // Using a smaller model for mobile devices
+  private readonly modelId = 'SmolLM2-1.7B-Instruct-q4f16_1-MLC'; // Using a highly lightweight model for mobile devices to avoid thermal throttling
 
   async init(progressCallback?: (progress: number) => void) {
     if (!this.engine) {
