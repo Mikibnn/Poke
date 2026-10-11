@@ -196,13 +196,20 @@ async function init() {
       currentStrategy = await aiManager.generateStrategy(text);
       strategyOutput.textContent = JSON.stringify(currentStrategy, null, 2);
       console.log("Generated Strategy:", currentStrategy);
-
-      startBattleBtn.disabled = false;
     } catch (e) {
-      strategyOutput.textContent = "Error generating strategy. Check console.";
+      strategyOutput.textContent = "Error generating strategy. Falling back to default aggressive strategy.\n\n" + String(e);
       console.error(e);
+      currentStrategy = {
+        aggressiveness: 1.0,
+        preferred_distance: 'melee',
+        skill_priorities: ['Lightning', 'Slash', 'Fireball'],
+        flee_threshold: 10,
+        healing_threshold: 20,
+        tactical_logic: "Fallback aggressive strategy due to AI load failure."
+      };
     } finally {
       generateBtn.disabled = false;
+      startBattleBtn.disabled = false;
     }
   });
 

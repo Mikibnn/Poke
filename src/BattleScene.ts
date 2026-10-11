@@ -31,23 +31,32 @@ export class BattleScene extends Phaser.Scene {
   }
 
   preload() {
-    // Generate a basic SVG texture for the hero
+    // 16x16 pixel-art monster style SVG for hero
     const heroSVG = `
-      <svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="30" cy="30" r="25" fill="#4ea8de" stroke="#000" stroke-width="3" />
-        <circle cx="20" cy="25" r="5" fill="#fff" />
-        <circle cx="40" cy="25" r="5" fill="#fff" />
-        <circle cx="20" cy="25" r="2" fill="#000" />
-        <circle cx="40" cy="25" r="2" fill="#000" />
-        <path d="M 20 40 Q 30 50 40 40" stroke="#000" stroke-width="3" fill="none" />
+      <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="2" width="6" height="2" fill="#4ea8de" />
+        <rect x="3" y="4" width="10" height="8" fill="#4ea8de" />
+        <rect x="5" y="6" width="2" height="2" fill="#fff" />
+        <rect x="9" y="6" width="2" height="2" fill="#fff" />
+        <rect x="5" y="6" width="1" height="1" fill="#000" />
+        <rect x="9" y="6" width="1" height="1" fill="#000" />
+        <rect x="4" y="12" width="3" height="2" fill="#4ea8de" />
+        <rect x="9" y="12" width="3" height="2" fill="#4ea8de" />
       </svg>
     `;
-    // Generate a basic SVG texture for the enemy
+
+    // 16x16 pixel-art monster style SVG for enemy
     const enemySVG = `
-      <svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="30,5 55,55 5,55" fill="#e63946" stroke="#000" stroke-width="3" />
-        <path d="M 20 30 L 25 35 M 40 30 L 35 35" stroke="#000" stroke-width="3" />
-        <path d="M 25 45 Q 30 40 35 45" stroke="#000" stroke-width="3" fill="none" />
+      <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="2" width="8" height="12" fill="#e63946" />
+        <rect x="3" y="4" width="2" height="6" fill="#e63946" />
+        <rect x="11" y="4" width="2" height="6" fill="#e63946" />
+        <rect x="5" y="5" width="2" height="2" fill="#fff" />
+        <rect x="9" y="5" width="2" height="2" fill="#fff" />
+        <rect x="6" y="5" width="1" height="1" fill="#000" />
+        <rect x="10" y="5" width="1" height="1" fill="#000" />
+        <rect x="6" y="10" width="4" height="2" fill="#000" />
+        <rect x="7" y="10" width="2" height="2" fill="#fff" />
       </svg>
     `;
 
@@ -80,13 +89,14 @@ export class BattleScene extends Phaser.Scene {
 
     // Player
     this.player = this.add.image(200, 300, 'heroTex') as any;
+    this.player.setScale(4);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
     // Add simple breathing animation
     this.tweens.add({
       targets: this.player,
-      scaleX: 1.05,
-      scaleY: 0.95,
+      scaleY: 3.8,
+      scaleX: 4.2,
       duration: 800,
       yoyo: true,
       repeat: -1,
@@ -95,13 +105,14 @@ export class BattleScene extends Phaser.Scene {
 
     // Enemy
     this.enemy = this.add.image(600, 300, 'enemyTex') as any;
+    this.enemy.setScale(4);
     this.physics.add.existing(this.enemy);
     this.enemy.body.setCollideWorldBounds(true);
     // Add simple breathing animation
     this.tweens.add({
       targets: this.enemy,
-      scaleX: 1.05,
-      scaleY: 0.95,
+      scaleY: 3.8,
+      scaleX: 4.2,
       duration: 700,
       yoyo: true,
       repeat: -1,
